@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import time
 
 from telegram import Update
 from telegram.constants import ChatAction
@@ -9,11 +11,18 @@ from agents.crew import run_ceo_crew
 
 logger = logging.getLogger(__name__)
 
-CREW_TIMEOUT_SECONDS = 600  # hard cap so a hung crew never fails silently
+# Hard cap so a hung crew never fails silently. Code reviews on large PRs
+# can take 15-20 min, so default is 30 min; override with CREW_TIMEOUT_SECONDS in .env
+CREW_TIMEOUT_SECONDS = int(os.getenv("CREW_TIMEOUT_SECONDS", "1800"))
+PROGRESS_INTERVAL_SECONDS = 60  # progress message every minute
 TELEGRAM_MAX_LEN = 4096
 
 ERROR_REPLY = "Sorry, an error occurred while processing your request. Please try again later."
-TIMEOUT_REPLY = "This is taking too long and was cancelled. Please try again with a simpler request."
+TIMEOUT_REPLY = (
+    "I stopped waiting -- this ran past the time limit. The work may still "
+    "finish in the background (for code reviews, check the PR for comments). "
+    "Check the console logs to see which step it was on."
+)
 
 
 def _chunk(text: str, size: int = TELEGRAM_MAX_LEN):
@@ -21,17 +30,41 @@ def _chunk(text: str, size: int = TELEGRAM_MAX_LEN):
 
 
 async def _run_crew_and_reply(update: Update, prompt: str) -> None:
-    """Run the crew off the event loop, with a timeout, and reply in chunks."""
+    """Run the crew off the event loop, sending a progress update every
+    minute until it finishes, times out, or fails."""
+    # Shared status the crew thread writes to and the ticker reads from.
+    status = {"last_step": "delegating to the right specialist..."}
+
+    def on_step(info: str) -> None:
+        status["last_step"] = info
+
+    crew_future = asyncio.create_task(
+        asyncio.to_thread(run_ceo_crew, prompt, on_step)
+    )
+    started = time.monotonic()
+
     try:
-        # to_thread keeps the bot responsive; wait_for guarantees we always answer.
-        answer = await asyncio.wait_for(
-            asyncio.to_thread(run_ceo_crew, prompt),
-            timeout=CREW_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        logger.error("Crew run timed out for prompt: %r", prompt)
-        await update.message.reply_text(TIMEOUT_REPLY)
-        return
+        while True:
+            done, _ = await asyncio.wait(
+                {crew_future}, timeout=PROGRESS_INTERVAL_SECONDS
+            )
+            if done:
+                answer = crew_future.result()  # re-raises crew exceptions
+                break
+
+            elapsed = time.monotonic() - started
+            if elapsed >= CREW_TIMEOUT_SECONDS:
+                # Threads can't be force-killed; we stop waiting and tell
+                # the user. The stray thread finishes in the background.
+                logger.error("Crew run timed out for prompt: %r", prompt)
+                await update.message.reply_text(TIMEOUT_REPLY)
+                return
+
+            minutes = int(elapsed // 60)
+            await update.message.reply_text(
+                f"⏳ Still working ({minutes} min): {status['last_step']}"
+            )
+            await update.message.chat.send_action(ChatAction.TYPING)
     except Exception:
         logger.exception("Crew run failed for prompt: %r", prompt)
         await update.message.reply_text(ERROR_REPLY)
@@ -39,7 +72,9 @@ async def _run_crew_and_reply(update: Update, prompt: str) -> None:
 
     if not answer or not answer.strip():
         logger.warning("Crew returned empty answer for prompt: %r", prompt)
-        await update.message.reply_text("I couldn't produce an answer for that. Please rephrase and try again.")
+        await update.message.reply_text(
+            "I couldn't produce an answer for that. Please rephrase and try again."
+        )
         return
 
     for chunk in _chunk(answer):
