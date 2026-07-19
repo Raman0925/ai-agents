@@ -21,6 +21,7 @@ def main():
     app.add_handler(CommandHandler("ask", ask))
 
     logger.info("Starting bot...")
+    # Start the Telegram bot polling loop
     app.run_polling()
 
 
