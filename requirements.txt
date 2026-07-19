@@ -7,5 +7,6 @@ pytest
 pytest-mock
 pre-commit
 langchain-openai
-crewai-tools
+crewai-tools[mcp]
 mcp
+mcpadapt

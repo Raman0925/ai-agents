@@ -4,6 +4,8 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 
 from crewai_tools import MCPServerAdapter
 
@@ -28,17 +30,42 @@ logger = logging.getLogger(__name__)
 _adapters: dict[str, MCPServerAdapter] = {}
 
 
+MCP_CONNECT_TIMEOUT = 90  # seconds
+
+
+def _connect(server) -> tuple:
+    try:
+        # Newer crewai-tools: fail after 60s instead of hanging forever.
+        adapter = MCPServerAdapter(server, connect_timeout=60)
+    except TypeError:  # older version without the param
+        adapter = MCPServerAdapter(server)
+    return adapter, list(adapter.tools)
+
+
 def _tools_for(name: str, server) -> list:
     adapter = _adapters.get(name)
-    if adapter is None:
-        logger.info("Connecting MCP server: %s", name)
+    if adapter is not None:
+        return list(adapter.tools)
+
+    logger.info("Connecting MCP server: %s", name)
+    # Run connect + tool discovery in a worker thread with a hard timeout,
+    # so a hanging server fails loudly instead of freezing the crew forever.
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(_connect, server)
         try:
-            # Newer crewai-tools: fail after 60s instead of hanging forever.
-            adapter = MCPServerAdapter(server, connect_timeout=60)
-        except TypeError:  # older version without the param
-            adapter = MCPServerAdapter(server)
-        _adapters[name] = adapter
-    return list(adapter.tools)
+            adapter, tools = future.result(timeout=MCP_CONNECT_TIMEOUT)
+        except FuturesTimeout:
+            raise RuntimeError(
+                f"Timed out connecting to MCP server '{name}' after "
+                f"{MCP_CONNECT_TIMEOUT}s. Check network/auth for this server "
+                f"(run `python check_mcp.py` for the GitHub server)."
+            ) from None
+    finally:
+        executor.shutdown(wait=False)
+
+    _adapters[name] = adapter
+    return tools
 
 
 _github_token_validated = False
