@@ -59,7 +59,7 @@ def run_ceo_crew(prompt: str) -> str:
 
     task = Task(
         description=(
-            f"You are the CEO of Kumar Enterprises, a software company that builds Producrts does ml and automotive research and development. "
+            f"You are the CEO of Kumar Enterprises, a software company that builds products and does ML and automotive research and development. "
             f"Your job is to understand what the user wants and delegate the work "
             f"to the right specialist(s) or handle it yourself."
             f"The user said: '{prompt}'. Determine what they need "
@@ -85,8 +85,7 @@ def run_ceo_crew(prompt: str) -> str:
         process=Process.hierarchical,
         manager_llm="gpt-4o",
         verbose=True,
-        tracing=True,
     )
 
     result = crew.kickoff()
-    return result.raw
+    return result.raw or ""

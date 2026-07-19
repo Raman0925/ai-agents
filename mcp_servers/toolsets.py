@@ -1,4 +1,8 @@
+import atexit
+import logging
+
 from crewai_tools import MCPServerAdapter
+
 from .connections import (
     GITHUB_SERVER,
     FILESYSTEM_SERVER,
@@ -10,80 +14,91 @@ from .connections import (
     SLACK_SERVER,
 )
 
+logger = logging.getLogger(__name__)
+
+# Cached adapters, one per server. Kept open for the lifetime of the process.
+#
+# IMPORTANT: do NOT use `with MCPServerAdapter(...) as tools: return list(tools)`.
+# The `with` block closes the MCP connection on exit, so the returned tools
+# point at a dead connection and every tool call fails/hangs silently.
+_adapters: dict[str, MCPServerAdapter] = {}
+
+
+def _tools_for(name: str, server) -> list:
+    adapter = _adapters.get(name)
+    if adapter is None:
+        logger.info("Connecting MCP server: %s", name)
+        adapter = MCPServerAdapter(server)
+        _adapters[name] = adapter
+    return list(adapter.tools)
+
+
+def _shutdown_adapters() -> None:
+    for name, adapter in _adapters.items():
+        try:
+            adapter.stop()
+        except Exception:
+            logger.warning("Failed to stop MCP adapter %s", name, exc_info=True)
+    _adapters.clear()
+
+
+atexit.register(_shutdown_adapters)
+
 
 def get_github_tools():
-    with MCPServerAdapter(GITHUB_SERVER) as tools:
-        return list(tools)
+    return _tools_for("github", GITHUB_SERVER)
 
 
 def get_filesystem_tools():
-    with MCPServerAdapter(FILESYSTEM_SERVER) as tools:
-        return list(tools)
+    return _tools_for("filesystem", FILESYSTEM_SERVER)
 
 
 def get_postgres_tools():
-    with MCPServerAdapter(POSTGRES_SERVER) as tools:
-        return list(tools)
+    return _tools_for("postgres", POSTGRES_SERVER)
 
 
 def get_sentry_tools():
-    with MCPServerAdapter(SENTRY_SERVER) as tools:
-        return list(tools)
+    return _tools_for("sentry", SENTRY_SERVER)
 
 
 def get_linear_tools():
-    with MCPServerAdapter(LINEAR_SERVER) as tools:
-        return list(tools)
+    return _tools_for("linear", LINEAR_SERVER)
 
 
 def get_notion_tools():
-    with MCPServerAdapter(NOTION_SERVER) as tools:
-        return list(tools)
+    return _tools_for("notion", NOTION_SERVER)
 
 
 def get_figma_tools():
-    with MCPServerAdapter(FIGMA_SERVER) as tools:
-        return list(tools)
+    return _tools_for("figma", FIGMA_SERVER)
 
 
 def get_slack_tools():
-    with MCPServerAdapter(SLACK_SERVER) as tools:
-        return list(tools)
+    return _tools_for("slack", SLACK_SERVER)
 
 
 def get_turing_tools():
-    tools = []
-    tools.extend(get_github_tools())
-    tools.extend(get_filesystem_tools())
-    tools.extend(get_postgres_tools())
-    tools.extend(get_sentry_tools())
-    tools.extend(get_linear_tools())
-    tools.extend(get_notion_tools())
-    tools.extend(get_slack_tools())
-    return tools
+    return (
+        get_github_tools()
+        + get_filesystem_tools()
+        + get_postgres_tools()
+        + get_sentry_tools()
+        + get_linear_tools()
+        + get_notion_tools()
+        + get_slack_tools()
+    )
 
 
 def get_max_tools():
-    tools = []
-    tools.extend(get_figma_tools())
-    tools.extend(get_notion_tools())
-    tools.extend(get_slack_tools())
-    return tools
+    return get_figma_tools() + get_notion_tools() + get_slack_tools()
 
 
 def get_iris_tools():
-    tools = []
-    tools.extend(get_figma_tools())
-    tools.extend(get_slack_tools())
-    return tools
+    return get_figma_tools() + get_slack_tools()
 
 
 def get_athena_tools():
-    tools = []
-    tools.extend(get_notion_tools())
-    tools.extend(get_postgres_tools())
-    tools.extend(get_slack_tools())
-    return tools
+    return get_notion_tools() + get_postgres_tools() + get_slack_tools()
 
 
 RITU_ALLOWED_TOOLS = {
@@ -98,7 +113,6 @@ RITU_ALLOWED_TOOLS = {
 
 
 def get_ritu_tools():
-    with MCPServerAdapter(GITHUB_SERVER) as all_tools:
-        available = [t for t in all_tools if t.name in RITU_ALLOWED_TOOLS]
-        print(f"Ritu's tools: {[t.name for t in available]}")
-        return available
+    available = [t for t in get_github_tools() if t.name in RITU_ALLOWED_TOOLS]
+    logger.info("Ritu's tools: %s", [t.name for t in available])
+    return available
