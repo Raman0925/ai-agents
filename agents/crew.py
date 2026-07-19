@@ -85,6 +85,7 @@ def run_ceo_crew(prompt: str) -> str:
         process=Process.hierarchical,
         manager_llm="gpt-4o",
         verbose=True,
+        tracing=True,
     )
 
     result = crew.kickoff()
