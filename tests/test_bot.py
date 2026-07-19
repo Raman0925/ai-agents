@@ -2,7 +2,8 @@ from unittest.mock import patch, MagicMock
 from agents.crew import run_ceo_crew
 
 
-def test_run_ceo_crew_returns_string():
+@patch("agents.crew.get_ritu_tools", return_value=[])
+def test_run_ceo_crew_returns_string(mock_ritu_tools):
     fake_result = MagicMock()
     fake_result.raw = "This is a fake research summary."
 
@@ -13,7 +14,8 @@ def test_run_ceo_crew_returns_string():
     assert len(output) > 0
 
 
-def test_run_ceo_crew_handles_empty_topic():
+@patch("agents.crew.get_ritu_tools", return_value=[])
+def test_run_ceo_crew_handles_empty_topic(mock_ritu_tools):
     fake_result = MagicMock()
     fake_result.raw = "Summary even for vague input."
 

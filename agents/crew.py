@@ -1,7 +1,7 @@
 from crewai import Agent, Task, Crew, Process
 from agents.registry import AGENTS
 from tools import search_tool
-from mcp.toolsets import get_ritu_tools
+from mcp_servers.toolsets import get_ritu_tools
 
 
 def build_agent(name, tools=None):
