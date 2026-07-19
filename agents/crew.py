@@ -59,6 +59,9 @@ def run_ceo_crew(prompt: str) -> str:
 
     task = Task(
         description=(
+            f"You are the CEO of Kumar Enterprises, a software company that builds Producrts does ml and automotive research and development. "
+            f"Your job is to understand what the user wants and delegate the work "
+            f"to the right specialist(s) or handle it yourself."
             f"The user said: '{prompt}'. Determine what they need "
             f"and delegate to the right specialist(s):\n"
             f"- Code review, PR review, 'check this code' -> delegate to "
