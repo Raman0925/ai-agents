@@ -27,12 +27,19 @@ def build_ritu() -> Agent:
 def run_ceo_crew(prompt: str, on_step: Optional[Callable[[str], None]] = None) -> str:
     """Run the hierarchical crew. `on_step` (if given) receives a short
     human-readable progress string every time an agent takes a step."""
+    def report(msg: str) -> None:
+        if on_step:
+            on_step(msg)
+
+    report("setting up agents...")
     researcher = build_agent("researcher", tools=[search_tool])
     marketing_expert = build_agent("marketing_expert")
     ml_researcher = build_agent("ml_researcher", tools=[search_tool])
     automotive_researcher = build_agent("automotive_researcher", tools=[search_tool])
     psychologist = build_agent("psychologist", tools=[search_tool])
+    report("connecting to GitHub tools for Ritu...")
     ritu = build_ritu()
+    report("agents ready -- CEO is delegating...")
 
     # The CEO is the manager: no tools, delegation enabled.
     ceo = build_agent("ceo", allow_delegation=True)
@@ -40,25 +47,27 @@ def run_ceo_crew(prompt: str, on_step: Optional[Callable[[str], None]] = None) -
     task = Task(
         description=(
             f"The user said: '{prompt}'. Determine what they need and "
-            f"delegate to the right specialist(s):\n"
+            f"delegate to the right specialist(s). When delegating, the "
+            f"coworker name MUST be the exact role string shown in quotes "
+            f"below:\n"
             f"- Code review, PR review, 'check this code' -> delegate to "
-            f"Ritu (Senior Principal Engineer). She needs the repo name and "
-            f"PR number -- if the user didn't give both, ask for them "
-            f"instead of guessing. Ritu posts real comments on the PR, so "
-            f"confirm intent first unless the user already said something "
-            f"like 'review and comment'. Only delegate to Ritu for genuine "
-            f"code review requests.\n"
-            f"- ML papers, models, training, AI concepts -> delegate to the "
-            f"ML Research Scientist, who explains papers and teaches "
-            f"concepts with citations.\n"
+            f"'Senior Principal Engineer'. She needs the repo (owner/name) "
+            f"and PR number -- extract them from the message or any GitHub "
+            f"URL the user shared (e.g. github.com/OWNER/REPO/pull/NUMBER "
+            f"means repo 'OWNER/REPO', PR NUMBER). If you cannot determine "
+            f"both, ask the user instead of guessing. She posts real "
+            f"comments on the PR, so confirm intent first unless the user "
+            f"already said something like 'review and comment'.\n"
+            f"- ML papers, models, training, AI concepts -> delegate to "
+            f"'ML Research Scientist'.\n"
             f"- Cars, EVs, batteries, autonomous driving, automotive R&D -> "
-            f"delegate to the Automotive R&D Researcher.\n"
+            f"delegate to 'Automotive R&D Researcher'.\n"
             f"- Human behavior, motivation, habits, decision-making, "
-            f"psychology -> delegate to the Behavioral Psychologist.\n"
+            f"psychology -> delegate to 'Behavioral Psychologist'.\n"
             f"- General market research, competitor analysis -> delegate to "
-            f"the Domain Researcher.\n"
-            f"- Marketing copy, positioning, branding -> delegate to the "
-            f"Marketing Expert.\n"
+            f"'Domain Researcher'.\n"
+            f"- Marketing copy, positioning, branding -> delegate to "
+            f"'Marketing Expert'.\n"
             f"If the request spans several areas, delegate to each relevant "
             f"specialist and synthesize their outputs into one coherent "
             f"answer. If key information is missing, return a clarifying "

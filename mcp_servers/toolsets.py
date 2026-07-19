@@ -1,5 +1,9 @@
 import atexit
+import json
 import logging
+import os
+import urllib.error
+import urllib.request
 
 from crewai_tools import MCPServerAdapter
 
@@ -28,9 +32,40 @@ def _tools_for(name: str, server) -> list:
     adapter = _adapters.get(name)
     if adapter is None:
         logger.info("Connecting MCP server: %s", name)
-        adapter = MCPServerAdapter(server)
+        try:
+            # Newer crewai-tools: fail after 60s instead of hanging forever.
+            adapter = MCPServerAdapter(server, connect_timeout=60)
+        except TypeError:  # older version without the param
+            adapter = MCPServerAdapter(server)
         _adapters[name] = adapter
     return list(adapter.tools)
+
+
+_github_token_validated = False
+
+
+def _validate_github_token() -> None:
+    """Fail fast with a clear error instead of hanging on a bad token."""
+    global _github_token_validated
+    if _github_token_validated:
+        return
+    token = (os.getenv("GITHUB_TOKEN") or "").strip()
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN is missing/empty in .env")
+    req = urllib.request.Request(
+        "https://api.github.com/user",
+        headers={"Authorization": f"Bearer {token}", "User-Agent": "agentsteam-bot"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            login = json.load(resp).get("login")
+            logger.info("GitHub token OK (authenticated as %s)", login)
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(
+            f"GitHub rejected GITHUB_TOKEN ({e.code}). Fix the token in .env "
+            f"and restart. Run `python check_token.py` to verify."
+        ) from e
+    _github_token_validated = True
 
 
 def _shutdown_adapters() -> None:
@@ -113,6 +148,7 @@ RITU_ALLOWED_TOOLS = {
 
 
 def get_ritu_tools():
+    _validate_github_token()
     available = [t for t in get_github_tools() if t.name in RITU_ALLOWED_TOOLS]
     logger.info("Ritu's tools: %s", [t.name for t in available])
     return available

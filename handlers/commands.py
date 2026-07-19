@@ -33,7 +33,7 @@ async def _run_crew_and_reply(update: Update, prompt: str) -> None:
     """Run the crew off the event loop, sending a progress update every
     minute until it finishes, times out, or fails."""
     # Shared status the crew thread writes to and the ticker reads from.
-    status = {"last_step": "delegating to the right specialist..."}
+    status = {"last_step": "starting..."}
 
     def on_step(info: str) -> None:
         status["last_step"] = info
