@@ -1,7 +1,7 @@
 import logging
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from config.config import TELEGRAM_BOT_TOKEN
-from handlers.commands import start, ask
+from handlers.commands import start, ask, handle_message
 
 # Enable logging
 logging.basicConfig(
@@ -19,6 +19,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ask", ask))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Starting bot...")
     # Start the Telegram bot polling loop
