@@ -22,6 +22,6 @@ jobs:
             git pull origin main
             source venv/bin/activate
             pip install -r requirements.txt
-            pm2 restart squad
-            pm2 save
+            /root/.nvm/versions/node/v22.23.1/bin/pm2 restart squad
+            /root/.nvm/versions/node/v22.23.1/bin/pm2 save
             echo "Deploy complete: $(date)"
