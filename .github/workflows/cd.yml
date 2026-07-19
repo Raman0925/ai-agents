@@ -18,12 +18,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            export NVM_DIR="/root/.nvm"
-            source "$NVM_DIR/nvm.sh"
             cd ${{ secrets.VPS_APP_DIR }}
-            git pull origin main
-            source venv/bin/activate
-            pip install -r requirements.txt
-            pm2 restart squad
-            pm2 save
-            echo "Deploy complete: $(date)"
+            git fetch --all --prune
+            git checkout main
+            git reset --hard origin/main
+            chmod +x deploy.sh
+            bash deploy.sh
