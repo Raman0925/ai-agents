@@ -8,3 +8,4 @@ pytest-mock
 pre-commit
 langchain-openai
 crewai-tools
+mcp
