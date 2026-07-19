@@ -1,5 +1,6 @@
 from crewai import Agent, Task, Crew, Process
 from langchain_openai import ChatOpenAI
+from tools import search_tool
 
 
 def run_ceo_crew(prompt: str) -> str:
@@ -11,6 +12,7 @@ def run_ceo_crew(prompt: str) -> str:
         goal="Find current, credible information on the given topic and summarize it clearly",
         backstory="You are an expert researcher who gives concise, well-sourced summaries.",
         llm=llm,
+        tools=[search_tool],
         allow_delegation=False,
     )
 
