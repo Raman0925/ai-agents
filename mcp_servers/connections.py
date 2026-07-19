@@ -7,7 +7,10 @@ load_dotenv()
 GITHUB_SERVER = {
     "url": "https://api.githubcopilot.com/mcp/",
     "transport": "streamable-http",
-    "headers": {"Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}"},
+    "headers": {
+        "Authorization": f"Bearer {os.getenv('GITHUB_TOKEN')}",
+        "X-MCP-Toolsets": "repos,pull_requests",
+    },
 }
 
 FILESYSTEM_SERVER = StdioServerParameters(
